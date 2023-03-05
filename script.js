@@ -38,7 +38,7 @@ var itemInfo = {
     "tooltip": ""
   },
   "see code": {
-    "value": "https://replit.com/@KevinGeorge/Retro-Gamer#index.html",
+    "value": "https://github.com/kiwuthegamer/Retro-Gamer",
     "tooltip": "I coded this entire website using HTML code"
   }
 }
