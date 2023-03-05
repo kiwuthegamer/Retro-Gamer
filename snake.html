@@ -1,0 +1,237 @@
+<head>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen&display=swap');
+
+    #titleBar {
+      text-align: center;
+      font-family: 'Press Start 2P';
+      font-size: 20px;
+      padding: 10px;
+    }
+
+    #alertWrapper {
+      position: absolute;
+    }
+    
+    .alert {
+      position: absolute;
+      width: 100vw;
+      top: -100vh;
+      left: 0;
+      transition: 1s;
+      z-index: 10;
+    }
+
+    .alert.show {
+      top: 0vh;
+    }
+  </style>
+</head>
+
+<body style="margin:0;background-color: #CCC;">
+  <div id="alertWrapper"></div>
+  <div id="titleBar">Retro Gamer - Snake<br>Arrow keys to move&nbsp;&nbsp;&nbsp;P to Pause/Unpause<br>Score: <span id="score">0</span>&nbsp;&nbsp;&nbsp;Difficulty: <span id="diff">Easy</span><br><span
+      id="paused"></span></div>
+  <div id="main" style="text-align:center;font-size:120%;display:inline;"></div>
+  <script>
+    
+    var diff = new URLSearchParams(window.location.search).get('diff');
+    var diffelem = document.getElementById("diff")
+    if (diff == 0){ diff = 200; diffelem.innerHTML = "Easy"; }
+    if (diff == 1){ diff = 150; diffelem.innerHTML = "Medium"; }
+    if (diff == 2){ diff = 100; diffelem.innerHTML = "Hard"; }
+    if (diff == 3){ diff = 50; diffelem.innerHTML = "Ultra Hard"; }
+    
+    var main = document.getElementById("main");
+    var score = document.getElementById("score");
+    var paused = document.getElementById("paused");
+    var gameHeight = 20;
+    var gameWidth = 25;
+
+    //                 0    1     2    3     4
+    //                Air  Wall Snake Food SnakeHead
+    var cellTypes = ["⬜", "⬛", "🟩", "🟥", "🟦"]
+    var foodIsEaten = 1;
+    var snakeCellLocations = [[5, 5], [6, 5]];
+    var snakeDirection = [1, 0];
+    var dirChangeNoUpdate = 0;
+    //                    x y (y is inverted)
+    //                   -1 0 means left
+    //                    1 0 means right
+    //                   0 -1 means up
+    //                    0 1 means down
+
+    var tickTimeout;
+
+    function init() {
+      for (var i = 0; i < gameHeight; i++) {
+        main.innerHTML += "<div class='row'></div>";
+        for (var ii = 0; ii < gameWidth; ii++) {
+          if (ii == 0 || ii == gameWidth - 1 || i == 0 || i == gameHeight - 1) {
+            document.getElementsByClassName("row")[i].innerHTML += `<span class='cell'>${cellTypes[1]}</span>`;
+          } else {
+            document.getElementsByClassName("row")[i].innerHTML += `<span class='cell'>${cellTypes[0]}</span>`;
+          }
+        }
+      }
+      tick();
+      pause();
+    }
+
+    function getCell(x, y) {return (document.getElementsByClassName("row")[y].getElementsByClassName("cell")[x])}
+    function setCell(x, y, type) {getCell(x, y).innerHTML = cellTypes[type]}
+
+    function tick() {
+
+      // Achivement Check
+      if(diff == 150 && parseInt(score.innerHTML) > 19){
+        var achievements = localStorage.getItem("achievements").split(",");
+        achievements[0] = "#32e647";
+        localStorage.setItem("achievements", achievements.join(","));
+      }
+      
+      dirChangeNoUpdate = 0;
+      moveSnake();
+      drawSnake();
+      
+      // High Score Handling
+      if(localStorage.getItem("snakehs") < snakeCellLocations.length-3) {
+        localStorage.setItem("snakehs", (snakeCellLocations.length-3).toString())
+      }
+      
+      tickTimeout = setTimeout(tick, diff);
+    }
+
+    function rand(min, max) {return Math.floor(Math.random() * (Math.floor(max) - Math.ceil(min)) + Math.ceil(min))}
+    // Max-ex, Min-in
+
+    function moveSnake() {
+      var newHeadX = snakeCellLocations[0][0] + snakeDirection[0];
+      var newHeadY = snakeCellLocations[0][1] + snakeDirection[1];
+      snakeCellLocations.unshift([newHeadX, newHeadY])
+      var oldTailX = snakeCellLocations[snakeCellLocations.length - 1][0];
+      var oldTailY = snakeCellLocations[snakeCellLocations.length - 1][1];
+      if (!foodIsEaten) {
+        setCell(oldTailX, oldTailY, 0)
+        snakeCellLocations.pop();
+      } else {
+        localStorage.setItem("xp", (parseInt(localStorage.getItem("xp"))+3).toString());
+        spawnFood();
+        foodIsEaten = 0;
+      }
+    }
+
+    function drawSnake() {
+      for (var i = 0; i < snakeCellLocations.length; i++) {
+        newSnakeCellType = cellTypes.indexOf(getCell(snakeCellLocations[i][0], snakeCellLocations[i][1]).innerHTML);
+        if (newSnakeCellType == 0) {// Replaced cell is air
+          if (i == 0) {
+            setCell(snakeCellLocations[i][0], snakeCellLocations[i][1], 4)
+          } else {
+            setCell(snakeCellLocations[i][0], snakeCellLocations[i][1], 2)
+          }
+        } else {// Replaced cell is not air
+          if (newSnakeCellType == 3) {// Replaced cell is food
+            if (i == 0) {
+              setCell(snakeCellLocations[i][0], snakeCellLocations[i][1], 4)
+            } else {
+              setCell(snakeCellLocations[i][0], snakeCellLocations[i][1], 2)
+            }
+            foodIsEaten = 1;
+            score.innerHTML = parseInt(score.innerHTML) + 1
+          } else {// Replaced cell is snake/wall
+            if (newSnakeCellType == 1) {// Replaced cell is wall
+              document.getElementById("alertWrapper").innerHTML = "<img class='alert' src='Assets/Win/0.png'>";
+              setTimeout(function(){
+                document.body.style["background-color"] = "#000";
+                document.getElementsByClassName("alert")[0].classList.add("show");
+                setTimeout(function(){ window.close() }, 5000)
+              }, 200)
+              return;
+            } else {// Replaced cell is snake
+              if (i == 0) {// Head is touching snake
+                document.getElementById("alertWrapper").innerHTML = "<img class='alert' src='Assets/Win/0.png'>";
+                setTimeout(function(){
+                  document.body.style["background-color"] = "#000";
+                  document.getElementsByClassName("alert")[0].classList.add("show");
+                  setTimeout(function(){ window.close() }, 5000)
+                }, 200)
+                return;
+              }
+              setCell(snakeCellLocations[i][0], snakeCellLocations[i][1], 2)
+            }
+          }
+        }
+      }
+    }
+
+    function spawnFood() {
+      var currCellType;
+      var currX;
+      var currY;
+      for (var i = 0; currCellType != 0; i++) {
+        var currX = rand(0, gameWidth);
+        var currY = rand(0, gameHeight);
+        currCellType = cellTypes.indexOf(getCell(currX, currY).innerHTML);
+      }
+      setCell(currX, currY, 3);
+    }
+
+    addEventListener("keydown", (e) => {
+      if(e.repeat) return;
+      if (dirChangeNoUpdate) {
+        moveSnake();
+        drawSnake();
+        dirChangeNoUpdate = 0;
+      }
+      switch (e.code) {
+        case "ArrowLeft":
+          if (!paused.innerHTML) {
+            if (JSON.stringify(snakeDirection) != JSON.stringify([1, 0])) {
+              snakeDirection = [-1, 0];
+            }
+            dirChangeNoUpdate = 1;
+          }
+          break;
+        case "ArrowRight":
+          if (!paused.innerHTML) {
+            if (JSON.stringify(snakeDirection) != JSON.stringify([-1, 0])) {
+              snakeDirection = [1, 0];
+            }
+            dirChangeNoUpdate = 1;
+          }
+          break;
+        case "ArrowUp":
+          if (!paused.innerHTML) {
+            if (JSON.stringify(snakeDirection) != JSON.stringify([0, 1])) {
+              snakeDirection = [0, -1];
+            }
+            dirChangeNoUpdate = 1;
+          }
+          break;
+        case "ArrowDown":
+          if (!paused.innerHTML) {
+            if (JSON.stringify(snakeDirection) != JSON.stringify([0, -1])) {
+              snakeDirection = [0, 1];
+            }
+            dirChangeNoUpdate = 1;
+          }
+          break;
+        case "KeyP":
+          pause();
+      }
+    });
+
+    function pause() {
+      if (paused.innerHTML) {//Currently Paused
+        tick();
+        paused.innerHTML = "";
+      } else {//Not Paused
+        clearTimeout(tickTimeout);
+        paused.innerHTML = "Paused";
+      }
+    }
+
+    init();
+  </script>
+</body>

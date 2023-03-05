@@ -1,0 +1,272 @@
+<head>
+  <link rel="preload" as="image" href="Assets/SpaceInvaders/Empty.png">
+  <link rel="preload" as="image" href="Assets/SpaceInvaders/Enemy.png">
+  <link rel="preload" as="image" href="Assets/SpaceInvaders/EnemyBullet.png">
+  <link rel="preload" as="image" href="Assets/SpaceInvaders/Player.png">
+  <link rel="preload" as="image" href="Assets/SpaceInvaders/PlayerBullet.png">
+  <link rel="preload" as="image" href="Assets/SpaceInvaders/Wall.png">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen&display=swap');
+
+    #titleBar {
+      text-align: center;
+      font-family: 'Press Start 2P';
+      font-size: 20px;
+      padding: 10px;
+    }
+
+    #alertWrapper {
+      position: absolute;
+    }
+    
+    .alert {
+      position: absolute;
+      width: 100vw;
+      top: -100vh;
+      left: 0;
+      transition: 1s;
+      z-index: 10;
+    }
+
+    .alert.show {
+      top: 0vh;
+    }
+
+    body {
+      zoom: 0.8;
+    }
+    
+  </style>
+</head>
+
+<body style="margin:0;background-color: #CCC;">
+  <div id="alertWrapper"></div>
+  <div id="titleBar">Retro Gamer - Space Invaders<br>Arrow keys to move&nbsp;&nbsp;&nbsp;Up Arrow to shoot&nbsp;&nbsp;&nbsp;P to Pause/Unpause<br>Difficulty: <span id="diff">Easy</span>&nbsp;&nbsp;&nbsp;<span id="paused"></span></div>
+  <div id="main" style="text-align:center;font-size:110%;display:inline;"></div>
+  <script>
+
+    var diff = new URLSearchParams(window.location.search).get('diff');
+    var diffelem = document.getElementById("diff")
+    
+    if (diff == 0){ diff = 200; diffelem.innerHTML = "Easy"; }
+    if (diff == 1){ diff = 150; diffelem.innerHTML = "Medium"; }
+    if (diff == 2){ diff = 100; diffelem.innerHTML = "Hard"; }
+
+    var paused = document.getElementById("paused");
+    var main = document.getElementById("main");
+    var gameHeight = 20;
+    var gameWidth = 18;
+
+    //                 0    1      2      3      4       5
+    //                Air  Wall   Ship  Enemy PBullet EBullet
+    var cellTypes = [
+      '<img style="height:32;width:32;" loading="eager" src="Assets/SpaceInvaders/Empty.png">',
+      '<img style="height:32;width:32;" loading="eager" src="Assets/SpaceInvaders/Wall.png">',
+      '<img style="height:32;width:32;" loading="eager" src="Assets/SpaceInvaders/Player.png">',
+      '<img style="height:32;width:32;" loading="eager" src="Assets/SpaceInvaders/Enemy.png">',
+      '<img style="height:32;width:32;" loading="eager" src="Assets/SpaceInvaders/PlayerBullet.png">',
+      '<img style="height:32;width:32;" loading="eager" src="Assets/SpaceInvaders/EnemyBullet.png">'
+    ]
+    var playerX = 5;
+    var enemyLocations = [];
+    var playerBulletLocations = [];
+    var enemyBulletLocations = [];
+    var rtlEnemies = [];
+
+    var tickTimeout;
+
+    function init() {
+      resetBoard();
+      spawnEnemies();
+      tick();
+      pause();
+    }
+
+    function getCell(x, y) {return (document.getElementsByClassName("row")[y].getElementsByClassName("cell")[x])}
+    function setCell(x, y, type) {getCell(x, y).innerHTML = cellTypes[type]}
+
+    function tick() {
+      drawSprites();
+
+      for (var i = 0; i < enemyLocations.length; i++) {
+        //Enemy Movement
+        if (rtlEnemies.includes(i)) {// Right Movement
+          if (cellTypes.indexOf(getCell(enemyLocations[i][0] - 1, enemyLocations[i][1]).innerHTML) == 1) {
+            rtlEnemies.splice(rtlEnemies.indexOf(i), 1);
+            enemyLocations[i][0]++;
+          } else {
+            enemyLocations[i][0]--;
+          }
+        } else {// Left Movement
+          if (cellTypes.indexOf(getCell(enemyLocations[i][0] + 1, enemyLocations[i][1]).innerHTML) == 1) {
+            rtlEnemies.push(i);
+            enemyLocations[i][0]--;
+          } else {
+            enemyLocations[i][0]++;
+          }
+        }
+        if (rand(0, 20) == 0) {//Down Movement
+          if (cellTypes.indexOf(getCell(enemyLocations[i][0], enemyLocations[i][1]).innerHTML + 1) != 1) {//Next Location Is Not Wall
+            enemyLocations[i][1]++;
+          } else {// Game End with Loss
+            endGame(0);
+            return;
+          }
+        }
+        if (rand(0, diff/10) == 0) {//Bullet Shooting
+          enemyBulletLocations.push([enemyLocations[i][0], enemyLocations[i][1] + 1]);
+        }
+        for (var ii = 0; ii < playerBulletLocations.length; ii++) {//Collision with Player Bullet
+          try {
+            if (enemyLocations[i][0] == playerBulletLocations[ii][0] && enemyLocations[i][1] == playerBulletLocations[ii][1]) {
+              localStorage.setItem("xp", (parseInt(localStorage.getItem("xp"))+1).toString());
+              enemyLocations.splice(i, 1);
+              playerBulletLocations.splice(ii, 1);
+            }
+          } catch (e) {}
+        }
+      }
+
+      for (var i = 0; i < enemyBulletLocations.length; i++) {//Move Enemy Bullet
+        var exp = cellTypes.indexOf(getCell(enemyBulletLocations[i][0], enemyBulletLocations[i][1] + 1).innerHTML);
+        if (exp != 1) {
+          if (cellTypes.indexOf(getCell(enemyBulletLocations[i][0], enemyBulletLocations[i][1]).innerHTML) == 2) {//Player Hit!
+            endGame(0);
+            return;
+          } else {
+            enemyBulletLocations[i][1]++;
+          }
+        } else {
+          enemyBulletLocations.splice(i, 1);
+        }
+      }
+
+      for (var i = 0; i < playerBulletLocations.length; i++) {//Move Player Bullet
+        var exp = cellTypes.indexOf(getCell(playerBulletLocations[i][0], playerBulletLocations[i][1] - 1).innerHTML);
+        if (exp != 1 && exp != 5) {
+          playerBulletLocations[i][1]--;
+        } else {
+          playerBulletLocations.splice(i, 1);
+        }
+      }
+
+      if (enemyLocations.length == 0) {
+        setTimeout("endGame(1)", 1000);
+        clearTimeout(tickTimeout);
+        return;
+      } else {
+        tickTimeout = setTimeout(tick, diff);
+      }
+    }
+
+    function resetBoard() {
+      main.innerHTML = "<br>";
+      for (var i = 0; i < gameHeight; i++) {
+        main.innerHTML += "<div class='row'></div>";
+        for (var ii = 0; ii < gameWidth; ii++) {
+          if (ii == 0 || ii == gameWidth - 1 || i == 0 || i == gameHeight - 1) {
+            document.getElementsByClassName("row")[i].innerHTML += `<span style='height:32;width:32;' class='cell'>${cellTypes[1]}</span>`;
+          } else {
+            document.getElementsByClassName("row")[i].innerHTML += `<span style='height:32;width:32;' class='cell'>${cellTypes[0]}</span>`;
+          }
+        }
+      }
+    }
+
+    function spawnEnemies() {
+      for (var i = 0; i < Math.floor(gameHeight / 4); i++) {
+        for (var ii = 0; ii < gameWidth - 1; ii++) {
+          if (cellTypes.indexOf(getCell(i, ii).innerHTML) == 0 && rand(0, 4) == 0) {
+            enemyLocations.push([ii, i]);
+          }
+        }
+      }
+    }
+
+    function drawSprites() {
+      resetBoard();
+      for (var i = 0; i < playerBulletLocations.length; i++) {//Draw Player Bullet
+        setCell(playerBulletLocations[i][0], playerBulletLocations[i][1], 4);
+      }
+      for (var i = 0; i < enemyBulletLocations.length; i++) {//Draw Enemy Bullet
+        setCell(enemyBulletLocations[i][0], enemyBulletLocations[i][1], 5);
+      }
+      for (var i = 0; i < enemyLocations.length; i++) {//Draw Enemy
+        setCell(enemyLocations[i][0], enemyLocations[i][1], 3);
+      }
+      setCell(playerX, gameHeight - 3, 2);//Draw Player
+    }
+
+    function rand(min, max) {return Math.floor(Math.random() * (Math.floor(max) - Math.ceil(min)) + Math.ceil(min))}
+    // Max-ex, Min-in
+
+    var playerCanShoot = 1;
+    
+    addEventListener("keyup", (e) => {
+      switch (e.code) {
+        case "ArrowLeft":
+          if (!paused.innerHTML) {
+            if (cellTypes.indexOf(getCell(playerX - 1, gameHeight - 3).innerHTML) == 0) {
+              playerX--;
+              clearTimeout(tickTimeout);
+              tick();
+            }
+          }
+          break;
+        case "ArrowRight":
+          if (!paused.innerHTML) {
+            if (cellTypes.indexOf(getCell(playerX + 1, gameHeight - 3).innerHTML) == 0) {
+              playerX++;
+              clearTimeout(tickTimeout);
+              tick();
+            }
+          }
+          break;
+        case "ArrowUp":// Shoot bullet
+          if(playerCanShoot){
+            if (!paused.innerHTML) {
+              playerBulletLocations.push([playerX, gameHeight - 4]);
+              clearTimeout(tickTimeout);
+              tick();
+              playerCanShoot = 0;
+              setTimeout(function(){ playerCanShoot = 1 }, 100);
+            }
+          }
+          break;
+        case "KeyP":
+          pause();
+      }
+    });
+
+    function pause() {
+      if (paused.innerHTML) {//Currently Paused
+        tick();
+        paused.innerHTML = "";
+      } else {//Not Paused
+        clearTimeout(tickTimeout);
+        paused.innerHTML = "Paused";
+      }
+    }
+    
+    function endGame(win) {
+      document.getElementById("alertWrapper").innerHTML = "<img class='alert' src='Assets/Win/"+win+".png'>";
+      setTimeout(function(){
+        document.getElementsByClassName("alert")[0].classList.add("show");
+        setTimeout(function(){ window.close() }, 5000)
+      }, 200)
+      // Achivement Check
+      if(win && diff == 100){
+        var achievements = localStorage.getItem("achievements").split(",");
+        achievements[2] = "#32e647";
+        localStorage.setItem("achievements", achievements.join(","));
+      }
+      // Stats Update
+      if(win){
+        localStorage.setItem("spaceinvaderwins", (parseInt(localStorage.getItem("spaceinvaderwins"))+1).toString());
+        localStorage.setItem("xp", (parseInt(localStorage.getItem("xp"))+10).toString());
+      }
+    }
+
+    init();
+  </script>
+</body>

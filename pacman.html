@@ -1,0 +1,358 @@
+<head>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Silkscreen&display=swap');
+
+    #titleBar {
+      text-align: center;
+      font-family: 'Press Start 2P';
+      font-size: 20px;
+      padding: 10px;
+      color: #FFF;
+    }
+
+    #alertWrapper {
+      position: absolute;
+    }
+    
+    .alert {
+      position: absolute;
+      width: 100vw;
+      top: -100vh;
+      left: 0;
+      transition: 1s;
+      z-index: 10;
+    }
+
+    .alert.show {
+      top: 0vh;
+    }
+  </style>
+</head>
+
+<body style="margin:0;background-color: #000;">
+  <div id="alertWrapper"></div>
+  <div id="titleBar">Retro Gamer - Pacman<br>Arrow keys to move&nbsp;&nbsp;&nbsp;P to Pause/Unpause<br>Difficulty: <span id="diff">Easy</span>&nbsp;&nbsp;&nbsp;<span id="paused"></span></div>
+  <div id="main" style="text-align:center;font-size:150%;display:inline;"></div>
+  <script>
+
+    var diff = new URLSearchParams(window.location.search).get('diff');
+    var diffelem = document.getElementById("diff")
+    if (diff == 0){ diff = 200; diffelem.innerHTML = "Easy"; }
+    if (diff == 1){ diff = 150; diffelem.innerHTML = "Medium"; }
+    if (diff == 2){ diff = 100; diffelem.innerHTML = "Hard"; }
+    
+
+    var main = document.getElementById("main");
+    var score = document.getElementById("score");
+    var paused = document.getElementById("paused");
+    var gameHeight = 10;
+    var gameWidth = 15;
+    
+    //                 0     1      2     3      4      5      6      7
+    //                Air   Wall Pacman Pellet Cherry Ghost1 Ghost2 Ghost3
+    var cellTypes = ['<img loading="eager" src="Assets/Pacman/Empty.png">', '<img loading="eager" src="Assets/Pacman/Wall.png">', '<img loading="eager" src="Assets/Pacman/Player.png">', '<img loading="eager" src="Assets/Pacman/Pellet.png">',  '<img loading="eager" src="Assets/Pacman/Cherry.png">', '<img loading="eager" src="Assets/Pacman/Ghost_1.png">', '<img loading="eager" src="Assets/Pacman/Ghost_2.png">', '<img loading="eager" src="Assets/Pacman/Ghost_3.png">'];
+    /* Directions | 0 Up | 1 Down | 2 Left | 3 Right */
+    var oppositeDirections = [1,0,3,2]
+    var playerLocation = [1, 1];
+    var playerDirection = 3;
+
+    var pelletLocations = [];
+    var cherryLocations = [];
+
+    var ghost1Location = [];
+    var ghost1Direction = 1;
+
+    var ghost2Location = [];
+    var ghost2Direction = rand(2,4);
+
+    var ghost3Location = [];
+    var ghost3Direction = 1;
+
+    var mazeLocations = [16,22,28,97,96,98,126,127,128,27,26,23,38,21,36,35,34,33,18,17,31,46,61,76,91,106,121,123,122,124,109,94,95,125,79,64,63,93,92,48,51,66,81,39,40,41,43,53,56,58,68,70,71,73,83,85,88,99,100,101,102,103,115,118,133,132,130,131,129];
+    var tickTimeout;
+    
+    function init() {
+      clearBoard();
+      drawMaze();
+      spawnSprites();
+      tickTimeout = setTimeout(tick, diff);
+      pause();
+    }
+
+    function clearBoard() {
+      main.innerHTML = "";
+      for (var i = 0; i < gameHeight; i++) {
+        main.innerHTML += "<div class='row'></div>";
+        for (var ii = 0; ii < gameWidth; ii++) {
+          document.getElementsByClassName("row")[i].innerHTML += `<span class='cell'>${cellTypes[1]}</span>`;
+        }
+      }
+    }
+
+    function drawMaze() {
+      for(var i=0;i<mazeLocations.length;i++){
+        setCellUsingI(mazeLocations[i], 0);
+      }
+    }
+
+    function spawnSprites() {
+      playerLocation = [Math.floor(gameWidth/2), Math.floor(gameHeight-gameHeight/3)];
+      ghost1Location = [1,1]
+      ghost2Location = [Math.floor(gameWidth/2),1]
+      ghost3Location = [gameWidth-2,1]
+      drawSprites();
+      for(var i=0;i<gameWidth;i++){ // Spawn Pellet and Cherry
+        for(var ii=0;ii<gameHeight;ii++){
+          if(rand(0,100)==0){//Cherry
+            if(checkCell([i,ii]) != 1){
+              cherryLocations.push([i, ii]);
+            }
+          } else {//Pellet
+            if(checkCell([i,ii]) != 1){
+              pelletLocations.push([i, ii]);
+            }
+          }
+        }
+      }
+      drawSprites();
+    }
+
+    function drawSprites() {
+      for(var i=0;i<pelletLocations.length;i++){//Draw Pellets
+        setCell(pelletLocations[i][0], pelletLocations[i][1], 3);
+      }
+      for(var i=0;i<cherryLocations.length;i++){//Draw Cherries
+        setCell(cherryLocations[i][0], cherryLocations[i][1], 4);
+      }
+      setCell(playerLocation[0], playerLocation[1], 2);// Draw Player
+      setCell(ghost1Location[0], ghost1Location[1], 5);// Draw Ghost 1
+      setCell(ghost2Location[0], ghost2Location[1], 6);// Draw Ghost 2
+      setCell(ghost3Location[0], ghost3Location[1], 7);// Draw Ghost 3
+    }
+
+    function getCell(x, y) {return (document.getElementsByClassName("row")[y].getElementsByClassName("cell")[x])}
+    function setCell(x, y, type) {getCell(x, y).innerHTML = cellTypes[type]}
+    function setCellUsingI(i, type) {document.getElementsByClassName("cell")[i].innerHTML = cellTypes[type]}
+
+    /*
+    xy Format:
+    x1  - [1, 0]
+    x-1 - [-1, 0]
+    y1  - [0, 1]
+    y-1 - [0, -1]
+
+    */
+    function checkCell(locArray, xy="x0") {
+      var diff = parseInt(xy.slice(1));
+      switch(xy[0]){
+        case "x":
+          return(cellTypes.indexOf(getCell(locArray[0]+diff,locArray[1]).innerHTML));
+        case "y":
+          return(cellTypes.indexOf(getCell(locArray[0],locArray[1]+diff).innerHTML));
+      }
+    }
+
+    var moveGhosts = 0;
+
+    function tick() {
+      moveGhosts = (moveGhosts + 1) % 2;
+
+      if(pelletLocations.length == 0 && cherryLocations.length == 0) {// Win Check
+        endGame(1);
+        return;
+      }
+
+      movePlayer(); // Player Movement
+      
+      // Player Img Rotation
+      switch (playerDirection) {
+        case 0: // Up
+          cellTypes[2] = '<img loading="eager" src="Assets/Pacman/Player.png" style="transform: rotate(270deg);">';
+          break;
+        case 1: // Down
+          cellTypes[2] = '<img loading="eager" src="Assets/Pacman/Player.png" style="transform: rotate(90deg);">';
+          break;
+        case 2: // Left
+          cellTypes[2] = '<img loading="eager" src="Assets/Pacman/Player.png" style="transform: rotate(180deg);">';
+          break;
+        case 3: // Right
+          cellTypes[2] = '<img loading="eager" src="Assets/Pacman/Player.png" style="transform: rotate(0deg);">';
+          break;
+      }
+      
+      if(moveGhosts == 1){// Ghost Movement
+        var moveGhostOutput;
+
+        moveGhostOutput = moveGhost(ghost1Location, ghost1Direction);
+        ghost1Location = moveGhostOutput[0];
+        ghost1Direction = moveGhostOutput[1];
+
+        moveGhostOutput = moveGhost(ghost2Location, ghost2Direction);
+        ghost2Location = moveGhostOutput[0];
+        ghost2Direction = moveGhostOutput[1];
+
+        moveGhostOutput = moveGhost(ghost3Location, ghost3Direction);
+        ghost3Location = moveGhostOutput[0];
+        ghost3Direction = moveGhostOutput[1];
+      }
+
+      // Ghost Collisions
+      if(playerLocation[0] == ghost1Location[0] && playerLocation[1] == ghost1Location[1]){ endGame(0); return; }
+      if(playerLocation[0] == ghost2Location[0] && playerLocation[1] == ghost2Location[1]){ endGame(0); return; }
+      if(playerLocation[0] == ghost3Location[0] && playerLocation[1] == ghost3Location[1]){ endGame(0); return; }
+
+      for(var i=0;i<pelletLocations.length;i++){// Pellet Collisions
+        if(playerLocation[0] == pelletLocations[i][0] && playerLocation[1] == pelletLocations[i][1]){
+          pelletLocations.splice(i, 1);
+          localStorage.setItem("xp", (parseInt(localStorage.getItem("xp"))+1).toString());
+        }
+      }
+
+      for(var i=0;i<cherryLocations.length;i++){// Cherry Collisions
+        if(playerLocation[0] == cherryLocations[i][0] && playerLocation[1] == cherryLocations[i][1]){
+          cherryLocations.splice(i, 1);
+          localStorage.setItem("xp", (parseInt(localStorage.getItem("xp"))+2).toString());
+        }
+      }
+
+      clearBoard();
+      drawMaze();
+      drawSprites();
+
+      tickTimeout = setTimeout(tick, diff);
+    }
+
+    function movePlayer() {
+      switch (playerDirection) {
+        case 0: // Up
+          if(checkCell(playerLocation, "y-1")!=1){
+            playerLocation[1]--
+          }
+          break;
+        case 1: // Down
+          if(checkCell(playerLocation, "y1")!=1){
+            playerLocation[1]++
+          }
+          break;
+        case 2: // Left
+          if(checkCell(playerLocation, "x-1")!=1){
+            playerLocation[0]--
+          }
+          break;
+        case 3: // Right
+          if(checkCell(playerLocation, "x1")!=1){
+            playerLocation[0]++
+          }
+          break;
+      }
+    }
+
+    function moveGhost(location, direction) {
+      var oldLocation = location;
+      switch (direction) {
+        case 0: // Up
+          if(checkCell(location, "y-1")!=1){
+            location[1]--
+          }
+          break;
+        case 1: // Down
+          if(checkCell(location, "y1")!=1){
+            location[1]++
+          }
+          break;
+        case 2: // Left
+          if(checkCell(location, "x-1")!=1){
+            location[0]--
+          }
+          break;
+        case 3: // Right
+          if(checkCell(location, "x1")!=1){
+            location[0]++
+          }
+          break;
+      }
+      var turnOptions = [];
+      if(checkCell(location, "x1") != 1) turnOptions.push(3)
+      if(checkCell(location, "x-1") != 1) turnOptions.push(2)
+      if(checkCell(location, "y1") != 1) turnOptions.push(1)
+      if(checkCell(location, "y-1") != 1) turnOptions.push(0)
+      if(turnOptions.length == 1){
+        direction == turnOptions[0];
+      } else {
+        for(var i=0;i<turnOptions.length;i++){ if(turnOptions[i]==oppositeDirections[direction]){ turnOptions.splice(i, 1) } }
+        direction = turnOptions[rand(0, turnOptions.length)];
+      }
+      return([location, direction]);
+    }
+
+    function rand(min, max) {return Math.floor(Math.random() * (Math.floor(max) - Math.ceil(min)) + Math.ceil(min))}
+    // Max-ex, Min-in
+
+    addEventListener("keydown", (e) => {
+      if(e.repeat){ return; }
+      switch (e.code) {
+        case "ArrowLeft":
+          if (!paused.innerHTML) {
+            playerDirection = 2;
+            clearTimeout(tickTimeout);
+            tick();
+          }
+          break;
+        case "ArrowRight":
+          if (!paused.innerHTML) {
+            playerDirection = 3;
+            clearTimeout(tickTimeout);
+            tick();
+          }
+          break;
+        case "ArrowUp":
+          if (!paused.innerHTML) {
+            playerDirection = 0;
+            clearTimeout(tickTimeout);
+            tick();
+          }
+          break;
+        case "ArrowDown":
+          if (!paused.innerHTML) {
+            playerDirection = 1;
+            clearTimeout(tickTimeout);
+            tick();
+          }
+          break;
+        case "KeyP":
+          pause();
+      }
+    });
+
+    function pause() {
+      if (paused.innerHTML) {//Currently Paused
+        tick();
+        paused.innerHTML = "";
+      } else {//Not Paused
+        clearTimeout(tickTimeout);
+        paused.innerHTML = "Paused";
+      }
+    }
+
+    function endGame(win) {
+      document.getElementById("alertWrapper").innerHTML = "<img class='alert' src='Assets/Win/"+win+".png'>";
+      setTimeout(function(){
+        document.getElementsByClassName("alert")[0].classList.add("show");
+        setTimeout(function(){ window.close() }, 5000)
+      }, 200)
+      // Achivement Check
+      if(win && diff == 100){
+        var achievements = localStorage.getItem("achievements").split(",");
+        achievements[1] = "#32e647";
+        localStorage.setItem("achievements", achievements.join(","));
+      }
+      // Stats Update
+      if(win){
+        localStorage.setItem("pacmanwins", (parseInt(localStorage.getItem("pacmanwins"))+1).toString());
+        localStorage.setItem("xp", (parseInt(localStorage.getItem("xp"))+10).toString());
+      }
+    }
+    
+    init();
+  </script>
+</body>
