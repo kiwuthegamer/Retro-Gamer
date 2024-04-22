@@ -145,7 +145,7 @@
               setTimeout(function(){
                 document.body.style["background-color"] = "#000";
                 document.getElementsByClassName("alert")[0].classList.add("show");
-                setTimeout(function(){ window.close() }, 5000)
+                setTimeout(function(){ window.reload() }, 5000)
               }, 200)
               return;
             } else {// Replaced cell is snake
@@ -154,7 +154,7 @@
                 setTimeout(function(){
                   document.body.style["background-color"] = "#000";
                   document.getElementsByClassName("alert")[0].classList.add("show");
-                  setTimeout(function(){ window.close() }, 5000)
+                  setTimeout(function(){ window.reload() }, 5000)
                 }, 200)
                 return;
               }
