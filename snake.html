@@ -36,7 +36,6 @@
       font-family: 'Silkscreen';
     }
   </style>
-  <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests"> 
 </head>
 
 <body style="margin:0;background-color: #CCC;">
@@ -100,7 +99,8 @@
       // Leaderboard data
       document.getElementById("highScore").innerHTML = localStorage.getItem("snakehs")
       
-      var leaderboard = JSON.parse(httpGet("http://dreamlo.com/lb/6627a61f8f40bb122c8ae585/json/5"))
+      console.log(httpGet("https://dreamlo.com/lb/6627a61f8f40bb122c8ae585/json/5"))
+      var leaderboard = JSON.parse(httpGet("https://dreamlo.com/lb/6627a61f8f40bb122c8ae585/json/5"))
       leaderboard = Object.values(leaderboard["dreamlo"]["leaderboard"])[0]
       const leaderboardElem = document.getElementById("leaderboard")
       
@@ -172,7 +172,7 @@
         name = prompt("Enter your name for the leaderboard! (max 10 chars) (leave blank to not save score) (highest score with the name will be recorded)").toLowerCase()
       }
       if (name) {
-        httpGet(`http://dreamlo.com/lb/3pI0Q4OhAkiuD0d7BkQNywyhud3mN3Ek23cZ3IdgVRhA/add/${name}/${score}`)
+        httpGet(`https://dreamlo.com/lb/3pI0Q4OhAkiuD0d7BkQNywyhud3mN3Ek23cZ3IdgVRhA/add/${name}/${score}`)
       }
       
       document.getElementById("alertWrapper").innerHTML = "<img class='alert' src='Assets/Win/0.png'>";
