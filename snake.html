@@ -25,26 +25,36 @@
     .alert.show {
       top: 0vh;
     }
+
+    #leaderboard {
+      background: darkgray;
+      position: absolute;
+      top: 30%;
+      padding: 2%;
+      border-top-right-radius: 20px;
+      border-bottom-right-radius: 20px;
+      font-family: 'Silkscreen';
+    }
   </style>
 </head>
 
 <body style="margin:0;background-color: #CCC;">
-  <div id="leaderBoard">
-    <ol>
-      <li>Kevin - 10</li>
-      <li>Kevin - 4</li>
-      <li>Kevin - 3</li>
-      <li>Kevin - 2</li>
-      <li>Kevin - 1</li>
-    </ol>
-  </div>
-
+  <div id="leaderboard"><b>Leaderboard</b></div>
   <div id="alertWrapper"></div>
-  <div id="titleBar">Retro Gamer - Snake<br>Arrow keys to move&nbsp;&nbsp;&nbsp;P to Pause/Unpause<br>Score: <span id="score">0</span>&nbsp;&nbsp;&nbsp;Difficulty: <span id="diff">Easy</span><br><span
-      id="paused"></span></div>
+  <div id="titleBar">
+    Retro Gamer - Snake<br>
+    Arrow keys to move&nbsp;&nbsp;&nbsp;P to Pause/Unpause<br>
+    Score: <span id="score">0</span>&nbsp;&nbsp;&nbsp;Difficulty: <span id="diff">Easy</span><br>
+    High Score: <span id="highScore">0</span>&nbsp;&nbsp;&nbsp;<span id="paused"></span></div>
   <div id="main" style="text-align:center;font-size:120%;display:inline;"></div>
   <script>
-    
+    function httpGet(theUrl){
+        var xmlHttp = new XMLHttpRequest();
+        xmlHttp.open( "GET", theUrl, false ); // false for synchronous request
+        xmlHttp.send( null );
+        return xmlHttp.responseText;
+    }
+
     var diff = new URLSearchParams(window.location.search).get('diff');
     var diffelem = document.getElementById("diff")
     if (diff == 0){ diff = 200; diffelem.innerHTML = "Easy"; }
@@ -84,6 +94,27 @@
           }
         }
       }
+
+
+      // Leaderboard data
+      document.getElementById("highScore").innerHTML = localStorage.getItem("snakehs")
+      
+      var leaderboard = JSON.parse(httpGet("http://dreamlo.com/lb/6627a61f8f40bb122c8ae585/json/5"))
+      leaderboard = Object.values(leaderboard["dreamlo"]["leaderboard"])[0]
+      const leaderboardElem = document.getElementById("leaderboard")
+      
+      var leaderboardHTML = "<ol>"
+        
+        for(var i=0;i<leaderboard.length;i++){
+          leaderboardHTML += `<li>${leaderboard[i].name} - ${leaderboard[i].score}</li>`
+        }
+        
+      leaderboardHTML += "</ol>"
+
+      console.log(leaderboard)
+      leaderboardElem.innerHTML += leaderboardHTML
+
+      // Start
       tick();
       pause();
     }
@@ -131,7 +162,28 @@
       }
     }
 
-    function drawSnake() {
+    function gameOver() {
+      clearTimeout(tickTimeout)
+      
+      let score = (snakeCellLocations.length-3).toString()
+      let name = undefined
+      while (name == undefined){
+        name = prompt("Enter your name for the leaderboard! (max 10 chars) (leave blank to not save score) (highest score with the name will be recorded)").toLowerCase()
+      }
+      if (name) {
+        httpGet(`http://dreamlo.com/lb/3pI0Q4OhAkiuD0d7BkQNywyhud3mN3Ek23cZ3IdgVRhA/add/${name}/${score}`)
+      }
+      
+      document.getElementById("alertWrapper").innerHTML = "<img class='alert' src='Assets/Win/0.png'>";
+      setTimeout(function(){
+        document.body.style["background-color"] = "#000";
+        document.getElementsByClassName("alert")[0].classList.add("show");
+        
+        setTimeout(function(){ window.location.reload() }, 5000)
+      }, 200)
+    }
+
+      function drawSnake() {
       for (var i = 0; i < snakeCellLocations.length; i++) {
         newSnakeCellType = cellTypes.indexOf(getCell(snakeCellLocations[i][0], snakeCellLocations[i][1]).innerHTML);
         if (newSnakeCellType == 0) {// Replaced cell is air
@@ -151,21 +203,11 @@
             score.innerHTML = parseInt(score.innerHTML) + 1
           } else {// Replaced cell is snake/wall
             if (newSnakeCellType == 1) {// Replaced cell is wall
-              document.getElementById("alertWrapper").innerHTML = "<img class='alert' src='Assets/Win/0.png'>";
-              setTimeout(function(){
-                document.body.style["background-color"] = "#000";
-                document.getElementsByClassName("alert")[0].classList.add("show");
-                setTimeout(function(){ window.location.reload() }, 5000)
-              }, 200)
+              gameOver()
               return;
             } else {// Replaced cell is snake
               if (i == 0) {// Head is touching snake
-                document.getElementById("alertWrapper").innerHTML = "<img class='alert' src='Assets/Win/0.png'>";
-                setTimeout(function(){
-                  document.body.style["background-color"] = "#000";
-                  document.getElementsByClassName("alert")[0].classList.add("show");
-                  setTimeout(function(){ window.location.reload() }, 5000)
-                }, 200)
+                gameOver()
                 return;
               }
               setCell(snakeCellLocations[i][0], snakeCellLocations[i][1], 2)
